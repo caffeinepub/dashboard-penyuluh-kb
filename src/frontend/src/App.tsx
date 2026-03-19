@@ -45,7 +45,7 @@ export default function App() {
 
   const { data: isApproved, isLoading: approvalLoading } =
     useIsCallerApproved();
-  const { data: isAdmin } = useIsCallerAdmin();
+  const { data: isAdmin, isLoading: adminLoading } = useIsCallerAdmin();
 
   const [currentView, setCurrentView] = useState<AppView>("penyuluh-dashboard");
 
@@ -64,24 +64,37 @@ export default function App() {
     );
   }
 
-  // Logged in but loading profile
-  if (profileLoading || !profileFetched) {
+  // Logged in -- wait for all auth queries in parallel (one loading screen)
+  if (profileLoading || !profileFetched || adminLoading || approvalLoading) {
     return <LoadingScreen />;
   }
 
-  // Logged in but no profile -> show register form
+  // Logged in but no profile
   if (!profile) {
+    // If the user is an admin (e.g., profile was deleted), bypass registration
+    // and go straight to the admin panel with a default display name.
+    if (isAdmin) {
+      return (
+        <>
+          <AppLayout
+            currentView="admin-dashboard"
+            setCurrentView={setCurrentView}
+            isAdmin={true}
+            profileName="Admin"
+          >
+            <AdminDashboard />
+          </AppLayout>
+          <Toaster richColors position="top-right" />
+        </>
+      );
+    }
+
     return (
       <>
         <LoginPage showRegister />
         <Toaster richColors position="top-right" />
       </>
     );
-  }
-
-  // Has profile, checking approval
-  if (approvalLoading) {
-    return <LoadingScreen />;
   }
 
   // Not yet approved
@@ -101,7 +114,6 @@ export default function App() {
 
   const effectiveView: AppView = (() => {
     if (effectiveAdmin) {
-      // Only allow admin views for admin users
       if (
         currentView === "admin-dashboard" ||
         currentView === "admin-users" ||

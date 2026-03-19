@@ -5,12 +5,12 @@ import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
 import Iter "mo:core/Iter";
 import Order "mo:core/Order";
+
 import AccessControl "authorization/access-control";
 import UserApproval "user-approval/approval";
 import MixinAuthorization "authorization/MixinAuthorization";
 import Storage "blob-storage/Storage";
 import MixinStorage "blob-storage/Mixin";
-
 
 
 actor {
@@ -59,6 +59,11 @@ actor {
     unitKerja : Text;
     wilayah : Text;
     role : UserRole;
+  };
+
+  public type DeletedUser = {
+    principal : Principal;
+    profile : UserProfile;
   };
 
   public type ReportStatus = {
@@ -119,6 +124,7 @@ actor {
   };
 
   let userProfiles = Map.empty<Principal, UserProfile>();
+  let deletedUserProfiles = Map.empty<Principal, UserProfile>();
   let laporan = Map.empty<ReportKey, LaporanRencanaKerja>();
 
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
@@ -137,14 +143,14 @@ actor {
 
   public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only registered users can save profiles");
+      Runtime.trap("Unauthorized: Only users can save profiles");
     };
     userProfiles.add(caller, profile);
   };
 
   public shared ({ caller }) func updateCallerUserProfile(name : ?Text, nip : ?Text, unitKerja : ?Text, wilayah : ?Text) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only registered users can update profiles");
+      Runtime.trap("Unauthorized: Only users can update profiles");
     };
 
     switch (userProfiles.get(caller)) {
@@ -164,14 +170,14 @@ actor {
 
   public query ({ caller }) func listUsers() : async [UserProfile] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can view user list");
+      Runtime.trap("Unauthorized: Only admins can perform this action");
     };
     userProfiles.values().toArray();
   };
 
   public query ({ caller }) func getAdminStats() : async AdminStats {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can view statistics");
+      Runtime.trap("Unauthorized: Only admins can perform this action");
     };
 
     let totalUsers = userProfiles.size();
@@ -201,7 +207,7 @@ actor {
 
   public shared ({ caller }) func createReport(report : LaporanRencanaKerja) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only registered users can create reports");
+      Runtime.trap("Unauthorized: Only users can create reports");
     };
     if (not (UserApproval.isApproved(approvalState, caller) or AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only approved users can create reports");
@@ -218,7 +224,7 @@ actor {
 
   public shared ({ caller }) func updateReport(nomorLaporan : Text, updatedReport : LaporanUpdate) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only registered users can update reports");
+      Runtime.trap("Unauthorized: Only users can update reports");
     };
     if (not (UserApproval.isApproved(approvalState, caller) or AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only approved users can update reports");
@@ -249,7 +255,7 @@ actor {
 
   public shared ({ caller }) func submitReport(nomorLaporan : Text) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only registered users can submit reports");
+      Runtime.trap("Unauthorized: Only users can submit reports");
     };
     if (not (UserApproval.isApproved(approvalState, caller) or AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only approved users can submit reports");
@@ -276,7 +282,7 @@ actor {
 
   public query ({ caller }) func getMyReports() : async [LaporanRencanaKerja] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only registered users can view reports");
+      Runtime.trap("Unauthorized: Only users can view reports");
     };
     if (not (UserApproval.isApproved(approvalState, caller) or AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only approved users can view reports");
@@ -292,14 +298,14 @@ actor {
 
   public query ({ caller }) func getAllReports() : async [LaporanRencanaKerja] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can view all reports");
+      Runtime.trap("Unauthorized: Only admins can perform this action");
     };
     laporan.values().toArray();
   };
 
   public shared ({ caller }) func addAttachmentToReport(nomorLaporan : Text, attachmentId : Text) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only registered users can add attachments");
+      Runtime.trap("Unauthorized: Only users can add attachments");
     };
     if (not (UserApproval.isApproved(approvalState, caller) or AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only approved users can add attachments");
@@ -323,7 +329,7 @@ actor {
 
   public shared ({ caller }) func removeAttachmentFromReport(nomorLaporan : Text, attachmentId : Text) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only registered users can remove attachments");
+      Runtime.trap("Unauthorized: Only users can remove attachments");
     };
     if (not (UserApproval.isApproved(approvalState, caller) or AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only approved users can remove attachments");
@@ -344,5 +350,83 @@ actor {
       };
     };
   };
-};
 
+  // Admin functions
+
+  public shared ({ caller }) func adminEditUserProfile(user : Principal, profile : UserProfile) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+    userProfiles.add(user, profile);
+  };
+
+  public shared ({ caller }) func adminDeleteUser(user : Principal) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+    // Save profile to deleted map before removing
+    switch (userProfiles.get(user)) {
+      case (?profile) { deletedUserProfiles.add(user, profile) };
+      case (null) {};
+    };
+    userProfiles.remove(user);
+    UserApproval.setApproval(approvalState, user, #rejected);
+  };
+
+  public query ({ caller }) func listDeletedUsers() : async [DeletedUser] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+    deletedUserProfiles.entries().map(func((principal, profile)) : DeletedUser {
+      { principal = principal; profile = profile }
+    }).toArray();
+  };
+
+  public shared ({ caller }) func adminRestoreUser(user : Principal) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+    switch (deletedUserProfiles.get(user)) {
+      case (null) { Runtime.trap("Deleted user not found") };
+      case (?profile) {
+        userProfiles.add(user, profile);
+        deletedUserProfiles.remove(user);
+        UserApproval.setApproval(approvalState, user, #approved);
+      };
+    };
+  };
+
+  public shared ({ caller }) func adminEditReport(author : Principal, nomorLaporan : Text, updatedReport : LaporanUpdate) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+
+    let reportKey = (author, nomorLaporan);
+
+    switch (laporan.get(reportKey)) {
+      case (null) { Runtime.trap("Report not found") };
+      case (?_) {
+        let newReport : LaporanRencanaKerja = {
+          updatedReport with
+          lampiranIds = updatedReport.lampiranIds;
+          author = author;
+        };
+        laporan.add(reportKey, newReport);
+      };
+    };
+  };
+
+  public shared ({ caller }) func adminDeleteReport(author : Principal, nomorLaporan : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+    let reportKey = (author, nomorLaporan);
+    switch (laporan.get(reportKey)) {
+      case (null) { Runtime.trap("Report not found") };
+      case (?_) {
+        laporan.remove(reportKey);
+      };
+    };
+  };
+
+};

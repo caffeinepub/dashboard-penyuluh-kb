@@ -98,6 +98,13 @@ export interface _SERVICE {
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'addAttachmentToReport' : ActorMethod<[string, string], undefined>,
+  'adminDeleteReport' : ActorMethod<[Principal, string], undefined>,
+  'adminDeleteUser' : ActorMethod<[Principal], undefined>,
+  'adminEditReport' : ActorMethod<
+    [Principal, string, LaporanUpdate],
+    undefined
+  >,
+  'adminEditUserProfile' : ActorMethod<[Principal, UserProfile], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole__1], undefined>,
   'createReport' : ActorMethod<[LaporanRencanaKerja], undefined>,
   'getAdminStats' : ActorMethod<[], AdminStats>,

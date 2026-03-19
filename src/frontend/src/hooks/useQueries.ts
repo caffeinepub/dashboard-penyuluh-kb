@@ -1,6 +1,9 @@
 import type { Principal } from "@dfinity/principal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { LaporanUpdate, UserProfile } from "../backend.d";
 import { useActor } from "./useActor";
+
+const FIVE_MINUTES = 5 * 60 * 1000;
 
 export function useGetCallerUserProfile() {
   const { actor, isFetching: actorFetching } = useActor();
@@ -12,6 +15,7 @@ export function useGetCallerUserProfile() {
     },
     enabled: !!actor && !actorFetching,
     retry: false,
+    staleTime: FIVE_MINUTES,
   });
   return {
     ...query,
@@ -29,6 +33,7 @@ export function useIsCallerApproved() {
       return actor.isCallerApproved();
     },
     enabled: !!actor && !actorFetching,
+    staleTime: FIVE_MINUTES,
   });
 }
 
@@ -41,6 +46,7 @@ export function useIsCallerAdmin() {
       return actor.isCallerAdmin();
     },
     enabled: !!actor && !actorFetching,
+    staleTime: FIVE_MINUTES,
   });
 }
 
@@ -97,6 +103,39 @@ export function useAdminUsersWithApproval() {
       }));
     },
     enabled: !!actor && !actorFetching,
+  });
+}
+
+export interface DeletedUser {
+  principal: Principal;
+  profile: UserProfile;
+}
+
+export function useListDeletedUsers() {
+  const { actor, isFetching: actorFetching } = useActor();
+  return useQuery<DeletedUser[]>({
+    queryKey: ["deletedUsers"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (actor as any).listDeletedUsers();
+    },
+    enabled: !!actor && !actorFetching,
+  });
+}
+
+export function useAdminRestoreUser() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (user: Principal) => {
+      if (!actor) throw new Error("Actor not available");
+      await (actor as any).adminRestoreUser(user);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["deletedUsers"] });
+      queryClient.invalidateQueries({ queryKey: ["adminUsersWithApproval"] });
+      queryClient.invalidateQueries({ queryKey: ["adminStats"] });
+    },
   });
 }
 
@@ -183,6 +222,86 @@ export function useSubmitReport() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["myReports"] });
+      queryClient.invalidateQueries({ queryKey: ["allReports"] });
+      queryClient.invalidateQueries({ queryKey: ["adminStats"] });
+    },
+  });
+}
+
+export function useAdminEditUserProfile() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      user,
+      profile,
+    }: {
+      user: Principal;
+      profile: UserProfile;
+    }) => {
+      if (!actor) throw new Error("Actor not available");
+      await actor.adminEditUserProfile(user, profile);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminUsersWithApproval"] });
+      queryClient.invalidateQueries({ queryKey: ["adminStats"] });
+    },
+  });
+}
+
+export function useAdminDeleteUser() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (user: Principal) => {
+      if (!actor) throw new Error("Actor not available");
+      await actor.adminDeleteUser(user);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminUsersWithApproval"] });
+      queryClient.invalidateQueries({ queryKey: ["adminStats"] });
+    },
+  });
+}
+
+export function useAdminEditReport() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      author,
+      nomorLaporan,
+      updatedReport,
+    }: {
+      author: Principal;
+      nomorLaporan: string;
+      updatedReport: LaporanUpdate;
+    }) => {
+      if (!actor) throw new Error("Actor not available");
+      await actor.adminEditReport(author, nomorLaporan, updatedReport);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["allReports"] });
+      queryClient.invalidateQueries({ queryKey: ["adminStats"] });
+    },
+  });
+}
+
+export function useAdminDeleteReport() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      author,
+      nomorLaporan,
+    }: {
+      author: Principal;
+      nomorLaporan: string;
+    }) => {
+      if (!actor) throw new Error("Actor not available");
+      await actor.adminDeleteReport(author, nomorLaporan);
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allReports"] });
       queryClient.invalidateQueries({ queryKey: ["adminStats"] });
     },

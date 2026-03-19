@@ -19,14 +19,41 @@ export const _CaffeineStorageRefillResult = IDL.Record({
   'success' : IDL.Opt(IDL.Bool),
   'topped_up_amount' : IDL.Opt(IDL.Nat),
 });
+export const ReportStatus = IDL.Variant({
+  'submitted' : IDL.Null,
+  'draft' : IDL.Null,
+});
+export const LaporanUpdate = IDL.Record({
+  'status' : ReportStatus,
+  'tanggal' : IDL.Text,
+  'sumberDana' : IDL.Text,
+  'waktuPelaksanaan' : IDL.Text,
+  'volume' : IDL.Text,
+  'metodeKegiatan' : IDL.Text,
+  'keterangan' : IDL.Text,
+  'lokasiKegiatan' : IDL.Text,
+  'indikatorKeberhasilan' : IDL.Text,
+  'lampiranIds' : IDL.Vec(IDL.Text),
+  'nomorLaporan' : IDL.Text,
+  'sasaran' : IDL.Text,
+  'namaKegiatan' : IDL.Text,
+});
+export const UserRole = IDL.Variant({
+  'admin' : IDL.Null,
+  'guest' : IDL.Null,
+  'penyuluh_kb' : IDL.Null,
+});
+export const UserProfile = IDL.Record({
+  'nip' : IDL.Text,
+  'name' : IDL.Text,
+  'role' : UserRole,
+  'wilayah' : IDL.Text,
+  'unitKerja' : IDL.Text,
+});
 export const UserRole__1 = IDL.Variant({
   'admin' : IDL.Null,
   'user' : IDL.Null,
   'guest' : IDL.Null,
-});
-export const ReportStatus = IDL.Variant({
-  'submitted' : IDL.Null,
-  'draft' : IDL.Null,
 });
 export const LaporanRencanaKerja = IDL.Record({
   'status' : ReportStatus,
@@ -50,18 +77,6 @@ export const AdminStats = IDL.Record({
   'approvedUsers' : IDL.Nat,
   'totalUsers' : IDL.Nat,
 });
-export const UserRole = IDL.Variant({
-  'admin' : IDL.Null,
-  'guest' : IDL.Null,
-  'penyuluh_kb' : IDL.Null,
-});
-export const UserProfile = IDL.Record({
-  'nip' : IDL.Text,
-  'name' : IDL.Text,
-  'role' : UserRole,
-  'wilayah' : IDL.Text,
-  'unitKerja' : IDL.Text,
-});
 export const ApprovalStatus = IDL.Variant({
   'pending' : IDL.Null,
   'approved' : IDL.Null,
@@ -70,21 +85,6 @@ export const ApprovalStatus = IDL.Variant({
 export const UserApprovalInfo = IDL.Record({
   'status' : ApprovalStatus,
   'principal' : IDL.Principal,
-});
-export const LaporanUpdate = IDL.Record({
-  'status' : ReportStatus,
-  'tanggal' : IDL.Text,
-  'sumberDana' : IDL.Text,
-  'waktuPelaksanaan' : IDL.Text,
-  'volume' : IDL.Text,
-  'metodeKegiatan' : IDL.Text,
-  'keterangan' : IDL.Text,
-  'lokasiKegiatan' : IDL.Text,
-  'indikatorKeberhasilan' : IDL.Text,
-  'lampiranIds' : IDL.Vec(IDL.Text),
-  'nomorLaporan' : IDL.Text,
-  'sasaran' : IDL.Text,
-  'namaKegiatan' : IDL.Text,
 });
 
 export const idlService = IDL.Service({
@@ -116,6 +116,14 @@ export const idlService = IDL.Service({
   '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
   'addAttachmentToReport' : IDL.Func([IDL.Text, IDL.Text], [], []),
+  'adminDeleteReport' : IDL.Func([IDL.Principal, IDL.Text], [], []),
+  'adminDeleteUser' : IDL.Func([IDL.Principal], [], []),
+  'adminEditReport' : IDL.Func(
+      [IDL.Principal, IDL.Text, LaporanUpdate],
+      [],
+      [],
+    ),
+  'adminEditUserProfile' : IDL.Func([IDL.Principal, UserProfile], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole__1], [], []),
   'createReport' : IDL.Func([LaporanRencanaKerja], [], []),
   'getAdminStats' : IDL.Func([], [AdminStats], ['query']),
@@ -164,14 +172,41 @@ export const idlFactory = ({ IDL }) => {
     'success' : IDL.Opt(IDL.Bool),
     'topped_up_amount' : IDL.Opt(IDL.Nat),
   });
+  const ReportStatus = IDL.Variant({
+    'submitted' : IDL.Null,
+    'draft' : IDL.Null,
+  });
+  const LaporanUpdate = IDL.Record({
+    'status' : ReportStatus,
+    'tanggal' : IDL.Text,
+    'sumberDana' : IDL.Text,
+    'waktuPelaksanaan' : IDL.Text,
+    'volume' : IDL.Text,
+    'metodeKegiatan' : IDL.Text,
+    'keterangan' : IDL.Text,
+    'lokasiKegiatan' : IDL.Text,
+    'indikatorKeberhasilan' : IDL.Text,
+    'lampiranIds' : IDL.Vec(IDL.Text),
+    'nomorLaporan' : IDL.Text,
+    'sasaran' : IDL.Text,
+    'namaKegiatan' : IDL.Text,
+  });
+  const UserRole = IDL.Variant({
+    'admin' : IDL.Null,
+    'guest' : IDL.Null,
+    'penyuluh_kb' : IDL.Null,
+  });
+  const UserProfile = IDL.Record({
+    'nip' : IDL.Text,
+    'name' : IDL.Text,
+    'role' : UserRole,
+    'wilayah' : IDL.Text,
+    'unitKerja' : IDL.Text,
+  });
   const UserRole__1 = IDL.Variant({
     'admin' : IDL.Null,
     'user' : IDL.Null,
     'guest' : IDL.Null,
-  });
-  const ReportStatus = IDL.Variant({
-    'submitted' : IDL.Null,
-    'draft' : IDL.Null,
   });
   const LaporanRencanaKerja = IDL.Record({
     'status' : ReportStatus,
@@ -195,18 +230,6 @@ export const idlFactory = ({ IDL }) => {
     'approvedUsers' : IDL.Nat,
     'totalUsers' : IDL.Nat,
   });
-  const UserRole = IDL.Variant({
-    'admin' : IDL.Null,
-    'guest' : IDL.Null,
-    'penyuluh_kb' : IDL.Null,
-  });
-  const UserProfile = IDL.Record({
-    'nip' : IDL.Text,
-    'name' : IDL.Text,
-    'role' : UserRole,
-    'wilayah' : IDL.Text,
-    'unitKerja' : IDL.Text,
-  });
   const ApprovalStatus = IDL.Variant({
     'pending' : IDL.Null,
     'approved' : IDL.Null,
@@ -215,21 +238,6 @@ export const idlFactory = ({ IDL }) => {
   const UserApprovalInfo = IDL.Record({
     'status' : ApprovalStatus,
     'principal' : IDL.Principal,
-  });
-  const LaporanUpdate = IDL.Record({
-    'status' : ReportStatus,
-    'tanggal' : IDL.Text,
-    'sumberDana' : IDL.Text,
-    'waktuPelaksanaan' : IDL.Text,
-    'volume' : IDL.Text,
-    'metodeKegiatan' : IDL.Text,
-    'keterangan' : IDL.Text,
-    'lokasiKegiatan' : IDL.Text,
-    'indikatorKeberhasilan' : IDL.Text,
-    'lampiranIds' : IDL.Vec(IDL.Text),
-    'nomorLaporan' : IDL.Text,
-    'sasaran' : IDL.Text,
-    'namaKegiatan' : IDL.Text,
   });
   
   return IDL.Service({
@@ -261,6 +269,14 @@ export const idlFactory = ({ IDL }) => {
     '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
     'addAttachmentToReport' : IDL.Func([IDL.Text, IDL.Text], [], []),
+    'adminDeleteReport' : IDL.Func([IDL.Principal, IDL.Text], [], []),
+    'adminDeleteUser' : IDL.Func([IDL.Principal], [], []),
+    'adminEditReport' : IDL.Func(
+        [IDL.Principal, IDL.Text, LaporanUpdate],
+        [],
+        [],
+      ),
+    'adminEditUserProfile' : IDL.Func([IDL.Principal, UserProfile], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole__1], [], []),
     'createReport' : IDL.Func([LaporanRencanaKerja], [], []),
     'getAdminStats' : IDL.Func([], [AdminStats], ['query']),

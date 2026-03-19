@@ -15,14 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Download,
-  ExternalLink,
-  Eye,
-  FileText,
-  Paperclip,
-  Send,
-} from "lucide-react";
+import { Download, Eye, FileText, Paperclip, Send } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PageContent, SectionHeader } from "../../components/AppLayout";
@@ -53,13 +46,16 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-interface AttachmentLink {
+interface AttachmentResolved {
   hash: string;
   url: string;
+  mimeType: string;
+  isImage: boolean;
+  isPdf: boolean;
 }
 
-function AttachmentList({ lampiranIds }: { lampiranIds: string[] }) {
-  const [links, setLinks] = useState<AttachmentLink[]>([]);
+function AttachmentViewer({ lampiranIds }: { lampiranIds: string[] }) {
+  const [items, setItems] = useState<AttachmentResolved[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -68,45 +64,83 @@ function AttachmentList({ lampiranIds }: { lampiranIds: string[] }) {
     Promise.all(
       lampiranIds.map(async (hash) => {
         const url = await getDirectURLForHash(hash);
-        return { hash, url };
+        // Probe mime type via HEAD
+        let mimeType = "";
+        try {
+          const resp = await fetch(url, { method: "HEAD" });
+          mimeType = resp.headers.get("content-type") || "";
+        } catch {
+          mimeType = "";
+        }
+        const isImage = mimeType.startsWith("image/");
+        const isPdf = mimeType === "application/pdf";
+        return { hash, url, mimeType, isImage, isPdf };
       }),
     )
-      .then(setLinks)
-      .catch(() => setLinks([]))
+      .then(setItems)
+      .catch(() => setItems([]))
       .finally(() => setLoading(false));
   }, [lampiranIds]);
 
   if (!lampiranIds.length) return null;
 
   return (
-    <div className="space-y-2" data-ocid="history.lampiran.panel">
+    <div className="space-y-3" data-ocid="history.lampiran.panel">
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
         <Paperclip size={12} />
         Lampiran ({lampiranIds.length})
       </p>
       {loading ? (
-        <div className="space-y-1" data-ocid="history.lampiran.loading_state">
+        <div className="space-y-2">
           {lampiranIds.map((h) => (
-            <Skeleton key={h} className="h-8 w-full rounded" />
+            <Skeleton key={h} className="h-20 w-full rounded" />
           ))}
         </div>
       ) : (
-        <ul className="space-y-1">
-          {links.map((link, idx) => (
-            <li key={link.hash}>
-              <a
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                data-ocid={`history.lampiran.link.${idx + 1}`}
-                className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm hover:bg-primary/5 hover:border-primary/30 transition-colors"
-              >
-                <FileText size={14} className="text-primary flex-shrink-0" />
-                <span className="flex-1 font-mono text-xs truncate">
-                  Lampiran {idx + 1}
-                </span>
-                <ExternalLink size={12} className="text-muted-foreground" />
-              </a>
+        <ul className="space-y-3">
+          {items.map((item, idx) => (
+            <li
+              key={item.hash}
+              className="border border-border rounded-lg overflow-hidden"
+              data-ocid={`history.lampiran.item.${idx + 1}`}
+            >
+              <div className="bg-muted/30 px-3 py-1.5 text-xs font-semibold text-muted-foreground border-b border-border">
+                Lampiran {idx + 1}
+              </div>
+              {item.isImage ? (
+                <div className="p-2">
+                  <img
+                    src={item.url}
+                    alt={`Lampiran ${idx + 1}`}
+                    className="w-full max-h-80 object-contain rounded"
+                  />
+                </div>
+              ) : item.isPdf ? (
+                <iframe
+                  src={item.url}
+                  title={`Lampiran ${idx + 1}`}
+                  className="w-full"
+                  style={{ height: "480px", border: "none" }}
+                />
+              ) : (
+                <div className="flex items-center gap-3 px-3 py-3">
+                  <FileText size={22} className="text-primary flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">Lampiran {idx + 1}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {item.mimeType || "Dokumen"}
+                    </p>
+                  </div>
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary underline"
+                  >
+                    Buka
+                  </a>
+                </div>
+              )}
             </li>
           ))}
         </ul>
@@ -121,9 +155,12 @@ export default function ReportHistory({ userProfile }: ReportHistoryProps) {
   const [detailReport, setDetailReport] = useState<
     NonNullable<typeof reports>[number] | null
   >(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
+  // Penyuluh downloads do NOT show status
   const handleDownload = async (report: NonNullable<typeof reports>[0]) => {
     try {
+      setDownloadingId(report.nomorLaporan);
       await downloadReportPDF(
         {
           nomorLaporan: report.nomorLaporan,
@@ -138,11 +175,15 @@ export default function ReportHistory({ userProfile }: ReportHistoryProps) {
           sumberDana: report.sumberDana,
           keterangan: report.keterangan,
           status: report.status as string,
+          lampiranIds: report.lampiranIds,
         },
         userProfile,
+        { showStatus: false },
       );
     } catch {
       toast.error("Gagal mengunduh PDF.");
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -270,10 +311,13 @@ export default function ReportHistory({ userProfile }: ReportHistoryProps) {
                         data-ocid={`history.download.button.${idx + 1}`}
                         className="h-8"
                         onClick={() => handleDownload(report)}
+                        disabled={downloadingId === report.nomorLaporan}
                         title="Unduh PDF"
                       >
                         <Download size={14} className="mr-1" />
-                        PDF
+                        {downloadingId === report.nomorLaporan
+                          ? "Memuat..."
+                          : "PDF"}
                       </Button>
                     </div>
                   </TableCell>
@@ -291,7 +335,7 @@ export default function ReportHistory({ userProfile }: ReportHistoryProps) {
       >
         <DialogContent
           data-ocid="history.dialog"
-          className="max-w-2xl max-h-[80vh] overflow-y-auto"
+          className="max-w-2xl max-h-[85vh] overflow-y-auto"
         >
           <DialogHeader>
             <DialogTitle>Detail Laporan</DialogTitle>
@@ -331,20 +375,23 @@ export default function ReportHistory({ userProfile }: ReportHistoryProps) {
                 </div>
               )}
 
-              {/* Attachments */}
+              {/* Attachments -- rendered inline */}
               {detailReport.lampiranIds.length > 0 && (
                 <div className="border-t border-border pt-4">
-                  <AttachmentList lampiranIds={detailReport.lampiranIds} />
+                  <AttachmentViewer lampiranIds={detailReport.lampiranIds} />
                 </div>
               )}
 
               <div className="flex justify-end pt-2">
                 <Button
                   data-ocid="history.detail.download.button"
+                  disabled={downloadingId === detailReport.nomorLaporan}
                   onClick={() => handleDownload(detailReport)}
                 >
                   <Download size={14} className="mr-2" />
-                  Unduh PDF
+                  {downloadingId === detailReport.nomorLaporan
+                    ? "Memuat lampiran..."
+                    : "Unduh PDF"}
                 </Button>
               </div>
             </div>

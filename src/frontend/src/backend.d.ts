@@ -55,6 +55,10 @@ export interface UserProfile {
     wilayah: string;
     unitKerja: string;
 }
+export interface DeletedUser {
+    principal: Principal;
+    profile: UserProfile;
+}
 export enum ApprovalStatus {
     pending = "pending",
     approved = "approved",
@@ -76,6 +80,11 @@ export enum UserRole__1 {
 }
 export interface backendInterface {
     addAttachmentToReport(nomorLaporan: string, attachmentId: string): Promise<void>;
+    adminDeleteReport(author: Principal, nomorLaporan: string): Promise<void>;
+    adminDeleteUser(user: Principal): Promise<void>;
+    adminEditReport(author: Principal, nomorLaporan: string, updatedReport: LaporanUpdate): Promise<void>;
+    adminEditUserProfile(user: Principal, profile: UserProfile): Promise<void>;
+    adminRestoreUser(user: Principal): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole__1): Promise<void>;
     createReport(report: LaporanRencanaKerja): Promise<void>;
     getAdminStats(): Promise<AdminStats>;
@@ -87,6 +96,7 @@ export interface backendInterface {
     isCallerAdmin(): Promise<boolean>;
     isCallerApproved(): Promise<boolean>;
     listApprovals(): Promise<Array<UserApprovalInfo>>;
+    listDeletedUsers(): Promise<Array<DeletedUser>>;
     listUsers(): Promise<Array<UserProfile>>;
     removeAttachmentFromReport(nomorLaporan: string, attachmentId: string): Promise<void>;
     requestApproval(): Promise<void>;

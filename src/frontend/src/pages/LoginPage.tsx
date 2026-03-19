@@ -15,12 +15,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Shield, UserPlus } from "lucide-react";
-import { motion } from "motion/react";
+import { ChevronDown, Loader2, Shield, UserPlus } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useRequestApproval, useSaveProfile } from "../hooks/useQueries";
+import { storeSessionParameter } from "../utils/urlParams";
 
 interface LoginPageProps {
   showRegister: boolean;
@@ -41,6 +42,18 @@ export default function LoginPage({ showRegister }: LoginPageProps) {
     role: "penyuluh_kb",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [adminCode, setAdminCode] = useState("");
+
+  const handleAdminLogin = () => {
+    if (!adminCode.trim()) {
+      toast.error("Masukkan kode akses admin terlebih dahulu");
+      return;
+    }
+    storeSessionParameter("caffeineAdminToken", adminCode.trim());
+    login();
+  };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -274,6 +287,75 @@ export default function LoginPage({ showRegister }: LoginPageProps) {
                     "Masuk / Login"
                   )}
                 </Button>
+
+                {/* Admin code login toggle */}
+                <button
+                  type="button"
+                  data-ocid="login.toggle"
+                  onClick={() => setShowAdminLogin((v) => !v)}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
+                >
+                  <span>Masuk sebagai Admin dengan kode khusus</span>
+                  <ChevronDown
+                    size={12}
+                    className={`transition-transform duration-200 ${
+                      showAdminLogin ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+
+                <AnimatePresence>
+                  {showAdminLogin && (
+                    <motion.div
+                      key="admin-login"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="w-full overflow-hidden"
+                    >
+                      <div className="border border-border rounded-md p-3 space-y-3 bg-muted/30">
+                        <div className="space-y-1.5">
+                          <Label
+                            htmlFor="adminCode"
+                            className="text-xs text-muted-foreground"
+                          >
+                            Kode Admin
+                          </Label>
+                          <Input
+                            id="adminCode"
+                            data-ocid="login.input"
+                            type="password"
+                            placeholder="Masukkan kode akses admin"
+                            value={adminCode}
+                            onChange={(e) => setAdminCode(e.target.value)}
+                            onKeyDown={(e) =>
+                              e.key === "Enter" && handleAdminLogin()
+                            }
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <Button
+                          data-ocid="login.secondary_button"
+                          size="sm"
+                          variant="outline"
+                          className="w-full h-8 text-xs"
+                          onClick={handleAdminLogin}
+                          disabled={isLoggingIn}
+                        >
+                          {isLoggingIn ? (
+                            <>
+                              <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                              Sedang Masuk...
+                            </>
+                          ) : (
+                            "Login Admin"
+                          )}
+                        </Button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </CardContent>
           </Card>
