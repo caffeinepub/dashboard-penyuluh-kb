@@ -34,11 +34,99 @@ async function fetchLogoBytes(): Promise<Uint8Array | null> {
   }
 }
 
-/** Convert any image URL to JPEG bytes via canvas (handles WebP, HEIC, PNG, etc.) */
-async function imageUrlToJpegBytes(url: string): Promise<Uint8Array | null> {
+/**
+ * Detect MIME type from magic bytes in file content.
+ * This is more reliable than trusting HTTP headers or URL extensions.
+ */
+function detectMimeFromBytes(bytes: Uint8Array): string {
+  if (bytes.length < 4) return "application/octet-stream";
+
+  // JPEG: FF D8 FF
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return "image/jpeg";
+  }
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47
+  ) {
+    return "image/png";
+  }
+  // GIF: 47 49 46 38
+  if (
+    bytes[0] === 0x47 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x38
+  ) {
+    return "image/gif";
+  }
+  // WebP: RIFF....WEBP
+  if (
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes.length >= 12 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
+  ) {
+    return "image/webp";
+  }
+  // BMP: 42 4D
+  if (bytes[0] === 0x42 && bytes[1] === 0x4d) {
+    return "image/bmp";
+  }
+  // PDF: %PDF
+  if (
+    bytes[0] === 0x25 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x44 &&
+    bytes[3] === 0x46
+  ) {
+    return "application/pdf";
+  }
+  // DOCX/ZIP: PK (50 4B 03 04)
+  if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
+    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  }
+  // DOC: D0 CF 11 E0
+  if (
+    bytes[0] === 0xd0 &&
+    bytes[1] === 0xcf &&
+    bytes[2] === 0x11 &&
+    bytes[3] === 0xe0
+  ) {
+    return "application/msword";
+  }
+  // HEIC/HEIF: check ftyp box at offset 4
+  if (bytes.length >= 12) {
+    const ftyp = String.fromCharCode(bytes[4], bytes[5], bytes[6], bytes[7]);
+    if (ftyp === "ftyp") {
+      return "image/heic";
+    }
+  }
+  return "application/octet-stream";
+}
+
+/**
+ * Convert image bytes to JPEG via canvas using a blob object URL.
+ * This avoids CORS issues since the object URL is same-origin.
+ */
+async function imageBytesToJpeg(
+  bytes: Uint8Array,
+  mimeType: string,
+): Promise<Uint8Array | null> {
   return new Promise((resolve) => {
+    const blob = new Blob([bytes.buffer as ArrayBuffer], {
+      type: mimeType || "image/jpeg",
+    });
+    const objectUrl = URL.createObjectURL(blob);
     const img = new Image();
-    img.crossOrigin = "anonymous";
     img.onload = () => {
       try {
         const canvas = document.createElement("canvas");
@@ -46,6 +134,7 @@ async function imageUrlToJpegBytes(url: string): Promise<Uint8Array | null> {
         canvas.height = img.naturalHeight || img.height;
         const ctx = canvas.getContext("2d");
         if (!ctx) {
+          URL.revokeObjectURL(objectUrl);
           resolve(null);
           return;
         }
@@ -53,34 +142,38 @@ async function imageUrlToJpegBytes(url: string): Promise<Uint8Array | null> {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0);
         canvas.toBlob(
-          (blob) => {
-            if (!blob) {
+          (jpegBlob) => {
+            URL.revokeObjectURL(objectUrl);
+            if (!jpegBlob) {
               resolve(null);
               return;
             }
-            blob.arrayBuffer().then((buf) => resolve(new Uint8Array(buf)));
+            jpegBlob.arrayBuffer().then((buf) => resolve(new Uint8Array(buf)));
           },
           "image/jpeg",
           0.88,
         );
       } catch {
+        URL.revokeObjectURL(objectUrl);
         resolve(null);
       }
     };
-    img.onerror = () => resolve(null);
-    img.src = url;
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(null);
+    };
+    img.src = objectUrl;
   });
 }
 
 interface AttachmentData {
   bytes: Uint8Array;
-  jpegBytes: Uint8Array | null; // canvas-converted JPEG for images
-  url: string;
+  jpegBytes: Uint8Array | null;
   mimeType: string;
   isImage: boolean;
   isPdf: boolean;
   index: number;
-  name: string;
+  fileName: string;
 }
 
 async function resolveAttachments(
@@ -92,34 +185,94 @@ async function resolveAttachments(
     try {
       const url = await getDirectURLForHash(hash);
       const resp = await fetch(url);
-      const blob = await resp.blob();
-      const mimeType = blob.type || "application/octet-stream";
+      if (!resp.ok) continue;
+      const arrayBuffer = await resp.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+
+      // Step 1: Try magic bytes detection first (most reliable)
+      let mimeType = detectMimeFromBytes(bytes);
+
+      // Step 2: If still generic, try HTTP Content-Type header
+      if (mimeType === "application/octet-stream") {
+        const headerType = resp.headers.get("content-type") || "";
+        if (headerType && headerType !== "application/octet-stream") {
+          mimeType = headerType.split(";")[0].trim();
+        }
+      }
+
+      // Step 3: If still generic, try URL extension
+      if (mimeType === "application/octet-stream") {
+        const ext = url.split("?")[0].split(".").pop()?.toLowerCase() || "";
+        const extMap: Record<string, string> = {
+          jpg: "image/jpeg",
+          jpeg: "image/jpeg",
+          png: "image/png",
+          gif: "image/gif",
+          webp: "image/webp",
+          heic: "image/heic",
+          heif: "image/heif",
+          bmp: "image/bmp",
+          tiff: "image/tiff",
+          tif: "image/tiff",
+          svg: "image/svg+xml",
+          pdf: "application/pdf",
+          doc: "application/msword",
+          docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          xls: "application/vnd.ms-excel",
+          pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+          ppt: "application/vnd.ms-powerpoint",
+          txt: "text/plain",
+          csv: "text/csv",
+          mp4: "video/mp4",
+          mov: "video/quicktime",
+          mp3: "audio/mpeg",
+          zip: "application/zip",
+          rar: "application/x-rar-compressed",
+        };
+        if (extMap[ext]) mimeType = extMap[ext];
+      }
+
       const isImage = mimeType.startsWith("image/");
       const isPdf = mimeType === "application/pdf";
-      const buf = await blob.arrayBuffer();
-      const bytes = new Uint8Array(buf);
 
-      // Pre-convert image to JPEG via canvas for reliable embedding
+      // Convert image to JPEG using blob object URL (no CORS issues)
       let jpegBytes: Uint8Array | null = null;
       if (isImage) {
-        jpegBytes = await imageUrlToJpegBytes(url);
+        jpegBytes = await imageBytesToJpeg(bytes, mimeType);
       }
 
       items.push({
         bytes,
         jpegBytes,
-        url,
         mimeType,
         isImage,
         isPdf,
         index: i + 1,
-        name: `Lampiran ${i + 1}`,
+        fileName: `Lampiran ${i + 1}`,
       });
     } catch {
       // skip failed attachment
     }
   }
   return items;
+}
+
+function getAttachmentTypeLabel(mimeType: string): string {
+  if (mimeType.startsWith("image/")) return "FOTO/GAMBAR";
+  if (mimeType === "application/pdf") return "DOKUMEN PDF";
+  if (mimeType.includes("word") || mimeType === "application/msword")
+    return "DOKUMEN WORD";
+  if (mimeType.includes("excel") || mimeType.includes("spreadsheet"))
+    return "DOKUMEN EXCEL";
+  if (mimeType.includes("powerpoint") || mimeType.includes("presentation"))
+    return "DOKUMEN PRESENTASI";
+  if (mimeType === "text/plain" || mimeType === "text/csv")
+    return "DOKUMEN TEKS";
+  if (mimeType.startsWith("video/")) return "FILE VIDEO";
+  if (mimeType.startsWith("audio/")) return "FILE AUDIO";
+  if (mimeType.includes("zip") || mimeType.includes("rar")) return "FILE ARSIP";
+  return "BERKAS LAINNYA";
 }
 
 export async function downloadReportPDF(
@@ -424,6 +577,57 @@ export async function downloadReportPDF(
     rowIsEven = !rowIsEven;
   }
 
+  // --- Lampiran summary section ---
+  if (attachments.length > 0) {
+    y -= 10;
+    if (y < MARGIN + 60) {
+      y = addNewPage();
+    }
+    const sumPage = lastPage();
+    sumPage.drawRectangle({
+      x: MARGIN,
+      y: y - 14,
+      width: 4,
+      height: 14,
+      color: rgb(0.1, 0.22, 0.42),
+    });
+    sumPage.drawText("LAMPIRAN", {
+      x: MARGIN + 10,
+      y: y - 12,
+      size: 10,
+      font: helveticaBold,
+      color: rgb(0.1, 0.22, 0.42),
+    });
+    y -= 24;
+    sumPage.drawText(
+      `Terdapat ${attachments.length} file lampiran yang terlampir pada halaman berikutnya.`,
+      {
+        x: MARGIN,
+        y,
+        size: 9.5,
+        font: helvetica,
+        color: rgb(0.3, 0.3, 0.3),
+      },
+    );
+    y -= 16;
+    for (const att of attachments) {
+      if (y < MARGIN + 20) break;
+      const typeLabel = att.isImage
+        ? "Foto/Gambar"
+        : att.isPdf
+          ? "Dokumen PDF"
+          : "Dokumen";
+      sumPage.drawText(`Lampiran ${att.index}: ${typeLabel}`, {
+        x: MARGIN + 10,
+        y,
+        size: 9,
+        font: helvetica,
+        color: rgb(0.2, 0.2, 0.2),
+      });
+      y -= 14;
+    }
+  }
+
   // --- Signature ---
   y -= 30;
   if (y < MARGIN + 80) {
@@ -489,7 +693,7 @@ export async function downloadReportPDF(
     });
   }
 
-  // --- Attachment pages ---
+  // --- Attachment pages (images) ---
   for (const att of attachments) {
     if (att.isImage) {
       mainDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
@@ -503,7 +707,7 @@ export async function downloadReportPDF(
         height: 30,
         color: rgb(0.1, 0.22, 0.42),
       });
-      attPage.drawText(`LAMPIRAN ${att.index}`, {
+      attPage.drawText(`LAMPIRAN ${att.index} - FOTO/GAMBAR`, {
         x: MARGIN + 10,
         y: PAGE_HEIGHT - MARGIN - 20,
         size: 11,
@@ -529,34 +733,47 @@ export async function downloadReportPDF(
         },
       );
 
-      // Image area: from below header to above footer
-      const imgAreaTop = PAGE_HEIGHT - MARGIN - 40; // just below header
-      const imgAreaBottom = MARGIN + 20; // just above footer
+      // Image area
+      const imgAreaTop = PAGE_HEIGHT - MARGIN - 40;
+      const imgAreaBottom = MARGIN + 20;
       const maxW = CONTENT_WIDTH - 10;
       const maxH = imgAreaTop - imgAreaBottom;
 
-      try {
-        // Prefer canvas-converted JPEG for reliability
-        const imgBytes = att.jpegBytes ?? att.bytes;
-        let img: Awaited<ReturnType<typeof mainDoc.embedJpg>>;
+      const imgBytes = att.jpegBytes ?? att.bytes;
+      let embedded = false;
+
+      if (imgBytes && imgBytes.length > 0) {
+        // Try JPEG first (canvas-converted or original)
         try {
-          img = await mainDoc.embedJpg(imgBytes);
+          const img = await mainDoc.embedJpg(imgBytes);
+          const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+          const iw = img.width * scale;
+          const ih = img.height * scale;
+          const ix = MARGIN + (CONTENT_WIDTH - iw) / 2;
+          const iy = imgAreaTop - ih;
+          attPage.drawImage(img, { x: ix, y: iy, width: iw, height: ih });
+          embedded = true;
         } catch {
-          img = await mainDoc.embedPng(att.bytes);
+          // Try PNG fallback with original bytes
+          try {
+            const img = await mainDoc.embedPng(att.bytes);
+            const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+            const iw = img.width * scale;
+            const ih = img.height * scale;
+            const ix = MARGIN + (CONTENT_WIDTH - iw) / 2;
+            const iy = imgAreaTop - ih;
+            attPage.drawImage(img, { x: ix, y: iy, width: iw, height: ih });
+            embedded = true;
+          } catch {
+            // failed
+          }
         }
+      }
 
-        const scale = Math.min(maxW / img.width, maxH / img.height, 1);
-        const iw = img.width * scale;
-        const ih = img.height * scale;
-        // Center horizontally, place at top of image area
-        const ix = MARGIN + (CONTENT_WIDTH - iw) / 2;
-        const iy = imgAreaTop - ih;
-
-        attPage.drawImage(img, { x: ix, y: iy, width: iw, height: ih });
-      } catch {
+      if (!embedded) {
         drawWrappedText(
           attPage,
-          "Gambar tidak dapat ditampilkan. Format tidak didukung.",
+          "Gambar tidak dapat ditampilkan. Silakan buka file aslinya.",
           MARGIN,
           PAGE_HEIGHT / 2,
           { font: helvetica, size: 10, color: rgb(0.5, 0.1, 0.1) },
@@ -573,31 +790,46 @@ export async function downloadReportPDF(
         height: 30,
         color: rgb(0.1, 0.22, 0.42),
       });
-      attPage.drawText(`LAMPIRAN ${att.index}`, {
+      attPage.drawText(
+        `LAMPIRAN ${att.index} - ${getAttachmentTypeLabel(att.mimeType)}`,
+        {
+          x: MARGIN + 10,
+          y: PAGE_HEIGHT - MARGIN - 20,
+          size: 11,
+          font: helveticaBold,
+          color: rgb(1, 1, 1),
+        },
+      );
+
+      // Info box
+      attPage.drawRectangle({
+        x: MARGIN,
+        y: PAGE_HEIGHT / 2 - 30,
+        width: CONTENT_WIDTH,
+        height: 80,
+        color: rgb(0.95, 0.97, 1),
+      });
+      attPage.drawText("Berkas terlampir dalam laporan ini.", {
         x: MARGIN + 10,
-        y: PAGE_HEIGHT - MARGIN - 20,
+        y: PAGE_HEIGHT / 2 + 30,
         size: 11,
         font: helveticaBold,
-        color: rgb(1, 1, 1),
+        color: rgb(0.1, 0.22, 0.42),
       });
-      attPage.drawText(`File: ${att.name}`, {
-        x: MARGIN,
-        y: PAGE_HEIGHT / 2 + 20,
-        size: 11,
-        font: helveticaBold,
-        color: rgb(0.2, 0.2, 0.2),
-      });
-      attPage.drawText(`Tipe: ${att.mimeType || "Dokumen"}`, {
-        x: MARGIN,
-        y: PAGE_HEIGHT / 2,
-        size: 10,
-        font: helvetica,
-        color: rgb(0.4, 0.4, 0.4),
-      });
-      attPage.drawText("File ini terlampir dalam laporan.", {
-        x: MARGIN,
-        y: PAGE_HEIGHT / 2 - 20,
-        size: 10,
+      attPage.drawText(
+        "Catatan: File ini tidak dapat ditampilkan langsung dalam PDF.",
+        {
+          x: MARGIN + 10,
+          y: PAGE_HEIGHT / 2 + 10,
+          size: 9.5,
+          font: helvetica,
+          color: rgb(0.3, 0.3, 0.3),
+        },
+      );
+      attPage.drawText(`Tipe file: ${getAttachmentTypeLabel(att.mimeType)}`, {
+        x: MARGIN + 10,
+        y: PAGE_HEIGHT / 2 - 10,
+        size: 9,
         font: helvetica,
         color: rgb(0.4, 0.4, 0.4),
       });
@@ -635,9 +867,10 @@ export async function downloadReportPDF(
         const pageIndices = Array.from({ length: pageCount }, (_, i) => i);
         const copiedPages = await finalDoc.copyPages(attPdfDoc, pageIndices);
 
-        const labelPage = finalDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
         const hFont = await finalDoc.embedFont(StandardFonts.HelveticaBold);
         const rFont = await finalDoc.embedFont(StandardFonts.Helvetica);
+
+        const labelPage = finalDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
         labelPage.drawRectangle({
           x: MARGIN,
           y: PAGE_HEIGHT - MARGIN - 30,
@@ -667,7 +900,38 @@ export async function downloadReportPDF(
           finalDoc.addPage(copiedPage);
         }
       } catch {
-        // Skip failed PDF merges
+        // If PDF merge fails, add a notice page
+        try {
+          const hFont = await finalDoc.embedFont(StandardFonts.HelveticaBold);
+          const rFont = await finalDoc.embedFont(StandardFonts.Helvetica);
+          const noticePage = finalDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+          noticePage.drawRectangle({
+            x: MARGIN,
+            y: PAGE_HEIGHT - MARGIN - 30,
+            width: CONTENT_WIDTH,
+            height: 30,
+            color: rgb(0.1, 0.22, 0.42),
+          });
+          noticePage.drawText(`LAMPIRAN ${att.index} - DOKUMEN PDF`, {
+            x: MARGIN + 10,
+            y: PAGE_HEIGHT - MARGIN - 20,
+            size: 11,
+            font: hFont,
+            color: rgb(1, 1, 1),
+          });
+          noticePage.drawText(
+            "Dokumen PDF terlampir (tidak dapat digabung karena file terproteksi).",
+            {
+              x: MARGIN,
+              y: PAGE_HEIGHT / 2,
+              size: 10,
+              font: rFont,
+              color: rgb(0.3, 0.3, 0.3),
+            },
+          );
+        } catch {
+          // skip
+        }
       }
     }
   }

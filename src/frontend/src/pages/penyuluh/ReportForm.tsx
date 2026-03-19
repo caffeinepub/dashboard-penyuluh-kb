@@ -40,8 +40,7 @@ const emptyForm = {
 };
 
 const MAX_FILES = 5;
-const ACCEPTED_TYPES =
-  ".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*";
+const ACCEPTED_TYPES = "*";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -52,7 +51,22 @@ function formatFileSize(bytes: number): string {
 function getFileIcon(file: File) {
   if (file.type.startsWith("image/"))
     return <Image size={16} className="text-primary" />;
-  return <FileText size={16} className="text-primary" />;
+  if (file.type === "application/pdf")
+    return <FileText size={16} className="text-red-500" />;
+  if (
+    file.type.includes("word") ||
+    file.name.endsWith(".doc") ||
+    file.name.endsWith(".docx")
+  )
+    return <FileText size={16} className="text-blue-500" />;
+  if (
+    file.type.includes("excel") ||
+    file.type.includes("spreadsheet") ||
+    file.name.endsWith(".xlsx") ||
+    file.name.endsWith(".xls")
+  )
+    return <FileText size={16} className="text-green-500" />;
+  return <Paperclip size={16} className="text-primary" />;
 }
 
 export default function ReportForm({ onSuccess }: ReportFormProps) {
@@ -360,8 +374,8 @@ export default function ReportForm({ onSuccess }: ReportFormProps) {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-xs text-muted-foreground">
-                Format yang didukung: PDF, Word (.doc/.docx), Foto (JPG, PNG,
-                GIF, WebP). Ukuran maks. 10 MB per berkas.
+                Semua jenis berkas didukung: PDF, Word, Excel, gambar (JPG, PNG,
+                WebP, HEIC), dan format lainnya. Ukuran maks. 10 MB per berkas.
               </p>
 
               {/* File list */}

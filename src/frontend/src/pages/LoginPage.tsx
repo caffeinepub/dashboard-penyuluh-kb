@@ -21,7 +21,9 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useRequestApproval, useSaveProfile } from "../hooks/useQueries";
-import { storeSessionParameter } from "../utils/urlParams";
+
+// Kode admin statis -- tidak berubah
+const ADMIN_PASSWORD = "Lupalagi09@";
 
 interface LoginPageProps {
   showRegister: boolean;
@@ -51,7 +53,11 @@ export default function LoginPage({ showRegister }: LoginPageProps) {
       toast.error("Masukkan kode akses admin terlebih dahulu");
       return;
     }
-    storeSessionParameter("caffeineAdminToken", adminCode.trim());
+    if (adminCode.trim() !== ADMIN_PASSWORD) {
+      toast.error("Kode admin tidak valid");
+      return;
+    }
+    // Kode benar -- lanjutkan login dengan Internet Identity
     login();
   };
 
