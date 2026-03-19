@@ -1,0 +1,57 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 0.5rem;
+    /* Deep government blue #1a3a6b */
+    --background: 0.97 0.005 264;
+    --foreground: 0.18 0.04 264;
+    --card: 1 0 0;
+    --card-foreground: 0.18 0.04 264;
+    --popover: 1 0 0;
+    --popover-foreground: 0.18 0.04 264;
+    /* Primary: deep blue */
+    --primary: 0.32 0.1 264;
+    --primary-foreground: 0.98 0 0;
+    --secondary: 0.92 0.02 264;
+    --secondary-foreground: 0.28 0.09 264;
+    --muted: 0.94 0.01 264;
+    --muted-foreground: 0.52 0.04 264;
+    --accent: 0.9 0.03 264;
+    --accent-foreground: 0.28 0.09 264;
+    --destructive: 0.577 0.245 27.325;
+    --destructive-foreground: 0.98 0 0;
+    --border: 0.88 0.02 264;
+    --input: 0.88 0.02 264;
+    --ring: 0.42 0.1 264;
+    --success: 0.6 0.15 145;
+    --success-foreground: 0.98 0 0;
+    --warning: 0.75 0.14 75;
+    --warning-foreground: 0.18 0.04 264;
+    --chart-1: 0.42 0.12 264;
+    --chart-2: 0.6 0.15 145;
+    --chart-3: 0.75 0.14 75;
+    --chart-4: 0.577 0.245 27;
+    --chart-5: 0.55 0.1 220;
+    /* Sidebar: deep blue */
+    --sidebar: 0.28 0.09 264;
+    --sidebar-foreground: 0.93 0.01 264;
+    --sidebar-primary: 0.75 0.14 75;
+    --sidebar-primary-foreground: 0.18 0.04 264;
+    --sidebar-accent: 0.35 0.1 264;
+    --sidebar-accent-foreground: 0.98 0 0;
+    --sidebar-border: 0.38 0.08 264;
+    --sidebar-ring: 0.55 0.1 264;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+}
