@@ -71,7 +71,7 @@ export default function LoginPage({ showRegister }: LoginPageProps) {
         >
           <div className="text-center mb-6">
             <img
-              src="/assets/generated/bkkbn-logo-transparent.dim_400x120.png"
+              src="/assets/uploads/logo-bkkbn-1.jpg"
               alt="BKKBN"
               className="h-16 mx-auto object-contain mb-4"
             />
@@ -187,7 +187,7 @@ export default function LoginPage({ showRegister }: LoginPageProps) {
       {/* Left panel - branding */}
       <div className="hidden lg:flex flex-col justify-between w-1/2 p-12">
         <img
-          src="/assets/generated/bkkbn-logo-transparent.dim_400x120.png"
+          src="/assets/uploads/logo-bkkbn-1.jpg"
           alt="BKKBN"
           className="h-14 w-auto object-contain brightness-0 invert self-start"
         />
@@ -232,7 +232,7 @@ export default function LoginPage({ showRegister }: LoginPageProps) {
         >
           <div className="lg:hidden mb-8 text-center">
             <img
-              src="/assets/generated/bkkbn-logo-transparent.dim_400x120.png"
+              src="/assets/uploads/logo-bkkbn-1.jpg"
               alt="BKKBN"
               className="h-12 mx-auto object-contain mb-3"
             />

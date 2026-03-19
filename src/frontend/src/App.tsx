@@ -21,7 +21,7 @@ function LoadingScreen() {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
       <img
-        src="/assets/generated/bkkbn-logo-transparent.dim_400x120.png"
+        src="/assets/uploads/logo-bkkbn-1.jpg"
         alt="BKKBN"
         className="h-12 object-contain"
       />

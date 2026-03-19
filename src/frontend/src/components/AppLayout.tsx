@@ -100,7 +100,7 @@ export default function AppLayout({
       {/* Logo */}
       <div className="px-4 py-5 border-b border-sidebar-border">
         <img
-          src="/assets/generated/bkkbn-logo-transparent.dim_400x120.png"
+          src="/assets/uploads/logo-bkkbn-1.jpg"
           alt="BKKBN"
           className="h-10 w-auto object-contain brightness-0 invert"
         />

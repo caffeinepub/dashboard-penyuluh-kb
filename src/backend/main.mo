@@ -10,9 +10,9 @@ import UserApproval "user-approval/approval";
 import MixinAuthorization "authorization/MixinAuthorization";
 import Storage "blob-storage/Storage";
 import MixinStorage "blob-storage/Mixin";
-import Migration "migration";
 
-(with migration = Migration.run)
+
+
 actor {
   // Initialize access control system
   let accessControlState = AccessControl.initState();

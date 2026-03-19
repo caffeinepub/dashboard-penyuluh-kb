@@ -27,7 +27,7 @@ export default function PendingApprovalPage() {
       >
         <div className="mb-6">
           <img
-            src="/assets/generated/bkkbn-logo-transparent.dim_400x120.png"
+            src="/assets/uploads/logo-bkkbn-1.jpg"
             alt="BKKBN"
             className="h-14 mx-auto object-contain mb-6"
           />
