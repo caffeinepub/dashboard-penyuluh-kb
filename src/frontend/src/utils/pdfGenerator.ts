@@ -22,6 +22,7 @@ export interface UserProfileData {
   nip: string;
   unitKerja: string;
   wilayah: string;
+  tandaTangan?: string;
 }
 
 async function fetchLogoBytes(): Promise<Uint8Array | null> {
@@ -305,6 +306,7 @@ export async function downloadReportPDF(
     return PAGE_HEIGHT - MARGIN;
   }
 
+  // biome-ignore lint/correctness/noUnusedVariables: utility function
   function drawWrappedText(
     page: ReturnType<typeof mainDoc.getPage>,
     text: string,
@@ -641,6 +643,32 @@ export async function downloadReportPDF(
     font: helvetica,
     color: rgb(0.2, 0.2, 0.2),
   });
+  // Embed signature image if available
+  if (userProfile.tandaTangan?.startsWith("data:image")) {
+    try {
+      const dataUrl = userProfile.tandaTangan;
+      const base64 = dataUrl.split(",")[1];
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const isPng = dataUrl.startsWith("data:image/png");
+      const sigImg = isPng
+        ? await mainDoc.embedPng(bytes)
+        : await mainDoc.embedJpg(bytes);
+      const maxW = 140;
+      const maxH = 60;
+      const dims = sigImg.scaleToFit(maxW, maxH);
+      const sigX = PAGE_WIDTH - MARGIN - 170 + (170 - dims.width) / 2;
+      sigPage.drawImage(sigImg, {
+        x: sigX,
+        y: y - dims.height - 4,
+        width: dims.width,
+        height: dims.height,
+      });
+    } catch {
+      // signature embed failed, skip
+    }
+  }
   y -= 60;
   sigPage.drawLine({
     start: { x: PAGE_WIDTH - MARGIN - 170, y },
@@ -693,11 +721,15 @@ export async function downloadReportPDF(
     });
   }
 
-  // --- Attachment pages (images) ---
+  // --- Merge all pages: save mainDoc, load as finalDoc, then add attachments in upload order ---
+  const mainBytes = await mainDoc.save();
+  let finalDoc = await PDFDocument.load(mainBytes);
+
   for (const att of attachments) {
     if (att.isImage) {
-      mainDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-      const attPage = lastPage();
+      const attPage = finalDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+      const hFont = await finalDoc.embedFont(StandardFonts.HelveticaBold);
+      const rFont = await finalDoc.embedFont(StandardFonts.Helvetica);
 
       // Header bar
       attPage.drawRectangle({
@@ -711,7 +743,7 @@ export async function downloadReportPDF(
         x: MARGIN + 10,
         y: PAGE_HEIGHT - MARGIN - 20,
         size: 11,
-        font: helveticaBold,
+        font: hFont,
         color: rgb(1, 1, 1),
       });
 
@@ -728,24 +760,22 @@ export async function downloadReportPDF(
           x: MARGIN,
           y: MARGIN - 18,
           size: 7.5,
-          font: helvetica,
+          font: rFont,
           color: rgb(0.6, 0.6, 0.6),
         },
       );
 
-      // Image area
+      // Image
       const imgAreaTop = PAGE_HEIGHT - MARGIN - 40;
       const imgAreaBottom = MARGIN + 20;
       const maxW = CONTENT_WIDTH - 10;
       const maxH = imgAreaTop - imgAreaBottom;
-
       const imgBytes = att.jpegBytes ?? att.bytes;
       let embedded = false;
 
       if (imgBytes && imgBytes.length > 0) {
-        // Try JPEG first (canvas-converted or original)
         try {
-          const img = await mainDoc.embedJpg(imgBytes);
+          const img = await finalDoc.embedJpg(imgBytes);
           const scale = Math.min(maxW / img.width, maxH / img.height, 1);
           const iw = img.width * scale;
           const ih = img.height * scale;
@@ -754,9 +784,8 @@ export async function downloadReportPDF(
           attPage.drawImage(img, { x: ix, y: iy, width: iw, height: ih });
           embedded = true;
         } catch {
-          // Try PNG fallback with original bytes
           try {
-            const img = await mainDoc.embedPng(att.bytes);
+            const img = await finalDoc.embedPng(att.bytes);
             const scale = Math.min(maxW / img.width, maxH / img.height, 1);
             const iw = img.width * scale;
             const ih = img.height * scale;
@@ -771,94 +800,19 @@ export async function downloadReportPDF(
       }
 
       if (!embedded) {
-        drawWrappedText(
-          attPage,
+        const rFont2 = await finalDoc.embedFont(StandardFonts.Helvetica);
+        attPage.drawText(
           "Gambar tidak dapat ditampilkan. Silakan buka file aslinya.",
-          MARGIN,
-          PAGE_HEIGHT / 2,
-          { font: helvetica, size: 10, color: rgb(0.5, 0.1, 0.1) },
+          {
+            x: MARGIN,
+            y: PAGE_HEIGHT / 2,
+            size: 10,
+            font: rFont2,
+            color: rgb(0.5, 0.1, 0.1),
+          },
         );
       }
-    } else if (!att.isPdf) {
-      // Word/other: info page
-      mainDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-      const attPage = lastPage();
-      attPage.drawRectangle({
-        x: MARGIN,
-        y: PAGE_HEIGHT - MARGIN - 30,
-        width: CONTENT_WIDTH,
-        height: 30,
-        color: rgb(0.1, 0.22, 0.42),
-      });
-      attPage.drawText(
-        `LAMPIRAN ${att.index} - ${getAttachmentTypeLabel(att.mimeType)}`,
-        {
-          x: MARGIN + 10,
-          y: PAGE_HEIGHT - MARGIN - 20,
-          size: 11,
-          font: helveticaBold,
-          color: rgb(1, 1, 1),
-        },
-      );
-
-      // Info box
-      attPage.drawRectangle({
-        x: MARGIN,
-        y: PAGE_HEIGHT / 2 - 30,
-        width: CONTENT_WIDTH,
-        height: 80,
-        color: rgb(0.95, 0.97, 1),
-      });
-      attPage.drawText("Berkas terlampir dalam laporan ini.", {
-        x: MARGIN + 10,
-        y: PAGE_HEIGHT / 2 + 30,
-        size: 11,
-        font: helveticaBold,
-        color: rgb(0.1, 0.22, 0.42),
-      });
-      attPage.drawText(
-        "Catatan: File ini tidak dapat ditampilkan langsung dalam PDF.",
-        {
-          x: MARGIN + 10,
-          y: PAGE_HEIGHT / 2 + 10,
-          size: 9.5,
-          font: helvetica,
-          color: rgb(0.3, 0.3, 0.3),
-        },
-      );
-      attPage.drawText(`Tipe file: ${getAttachmentTypeLabel(att.mimeType)}`, {
-        x: MARGIN + 10,
-        y: PAGE_HEIGHT / 2 - 10,
-        size: 9,
-        font: helvetica,
-        color: rgb(0.4, 0.4, 0.4),
-      });
-
-      attPage.drawLine({
-        start: { x: MARGIN, y: MARGIN - 5 },
-        end: { x: PAGE_WIDTH - MARGIN, y: MARGIN - 5 },
-        thickness: 0.5,
-        color: rgb(0.8, 0.83, 0.9),
-      });
-      attPage.drawText(
-        "Dicetak melalui Sistem Dashboard Penyuluh KB - BKKBN Kemendukbangga",
-        {
-          x: MARGIN,
-          y: MARGIN - 18,
-          size: 7.5,
-          font: helvetica,
-          color: rgb(0.6, 0.6, 0.6),
-        },
-      );
-    }
-  }
-
-  // --- Merge PDF attachments ---
-  const mainBytes = await mainDoc.save();
-  let finalDoc = await PDFDocument.load(mainBytes);
-
-  for (const att of attachments) {
-    if (att.isPdf) {
+    } else if (att.isPdf) {
       try {
         const attPdfDoc = await PDFDocument.load(att.bytes, {
           ignoreEncryption: true,
@@ -868,7 +822,6 @@ export async function downloadReportPDF(
         const copiedPages = await finalDoc.copyPages(attPdfDoc, pageIndices);
 
         const hFont = await finalDoc.embedFont(StandardFonts.HelveticaBold);
-        const rFont = await finalDoc.embedFont(StandardFonts.Helvetica);
 
         const labelPage = finalDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
         labelPage.drawRectangle({
@@ -885,22 +838,11 @@ export async function downloadReportPDF(
           font: hFont,
           color: rgb(1, 1, 1),
         });
-        labelPage.drawText(
-          "Halaman-halaman berikut adalah isi dokumen PDF yang dilampirkan:",
-          {
-            x: MARGIN,
-            y: PAGE_HEIGHT / 2,
-            size: 10,
-            font: rFont,
-            color: rgb(0.3, 0.3, 0.3),
-          },
-        );
 
         for (const copiedPage of copiedPages) {
           finalDoc.addPage(copiedPage);
         }
       } catch {
-        // If PDF merge fails, add a notice page
         try {
           const hFont = await finalDoc.embedFont(StandardFonts.HelveticaBold);
           const rFont = await finalDoc.embedFont(StandardFonts.Helvetica);
@@ -933,6 +875,77 @@ export async function downloadReportPDF(
           // skip
         }
       }
+    } else {
+      // Word/other: info page
+      const hFont = await finalDoc.embedFont(StandardFonts.HelveticaBold);
+      const rFont = await finalDoc.embedFont(StandardFonts.Helvetica);
+      const attPage = finalDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+      attPage.drawRectangle({
+        x: MARGIN,
+        y: PAGE_HEIGHT - MARGIN - 30,
+        width: CONTENT_WIDTH,
+        height: 30,
+        color: rgb(0.1, 0.22, 0.42),
+      });
+      attPage.drawText(
+        `LAMPIRAN ${att.index} - ${getAttachmentTypeLabel(att.mimeType)}`,
+        {
+          x: MARGIN + 10,
+          y: PAGE_HEIGHT - MARGIN - 20,
+          size: 11,
+          font: hFont,
+          color: rgb(1, 1, 1),
+        },
+      );
+
+      attPage.drawRectangle({
+        x: MARGIN,
+        y: PAGE_HEIGHT / 2 - 30,
+        width: CONTENT_WIDTH,
+        height: 80,
+        color: rgb(0.95, 0.97, 1),
+      });
+      attPage.drawText("Berkas terlampir dalam laporan ini.", {
+        x: MARGIN + 10,
+        y: PAGE_HEIGHT / 2 + 30,
+        size: 11,
+        font: hFont,
+        color: rgb(0.1, 0.22, 0.42),
+      });
+      attPage.drawText(
+        "Catatan: File ini tidak dapat ditampilkan langsung dalam PDF.",
+        {
+          x: MARGIN + 10,
+          y: PAGE_HEIGHT / 2 + 10,
+          size: 9.5,
+          font: rFont,
+          color: rgb(0.3, 0.3, 0.3),
+        },
+      );
+      attPage.drawText(`Tipe file: ${getAttachmentTypeLabel(att.mimeType)}`, {
+        x: MARGIN + 10,
+        y: PAGE_HEIGHT / 2 - 10,
+        size: 9,
+        font: rFont,
+        color: rgb(0.4, 0.4, 0.4),
+      });
+
+      attPage.drawLine({
+        start: { x: MARGIN, y: MARGIN - 5 },
+        end: { x: PAGE_WIDTH - MARGIN, y: MARGIN - 5 },
+        thickness: 0.5,
+        color: rgb(0.8, 0.83, 0.9),
+      });
+      attPage.drawText(
+        "Dicetak melalui Sistem Dashboard Penyuluh KB - BKKBN Kemendukbangga",
+        {
+          x: MARGIN,
+          y: MARGIN - 18,
+          size: 7.5,
+          font: rFont,
+          color: rgb(0.6, 0.6, 0.6),
+        },
+      );
     }
   }
 

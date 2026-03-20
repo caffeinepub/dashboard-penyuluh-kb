@@ -19,6 +19,10 @@ export interface AdminStats {
 export type ApprovalStatus = { 'pending' : null } |
   { 'approved' : null } |
   { 'rejected' : null };
+export interface DeletedUser {
+  'principal' : Principal,
+  'profile' : UserProfile,
+}
 export interface LaporanRencanaKerja {
   'status' : ReportStatus,
   'tanggal' : string,
@@ -60,6 +64,7 @@ export interface UserProfile {
   'nip' : string,
   'name' : string,
   'role' : UserRole,
+  'tandaTangan' : [] | [string],
   'wilayah' : string,
   'unitKerja' : string,
 }
@@ -105,6 +110,7 @@ export interface _SERVICE {
     undefined
   >,
   'adminEditUserProfile' : ActorMethod<[Principal, UserProfile], undefined>,
+  'adminRestoreUser' : ActorMethod<[Principal], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole__1], undefined>,
   'createReport' : ActorMethod<[LaporanRencanaKerja], undefined>,
   'getAdminStats' : ActorMethod<[], AdminStats>,
@@ -116,6 +122,7 @@ export interface _SERVICE {
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'isCallerApproved' : ActorMethod<[], boolean>,
   'listApprovals' : ActorMethod<[], Array<UserApprovalInfo>>,
+  'listDeletedUsers' : ActorMethod<[], Array<DeletedUser>>,
   'listUsers' : ActorMethod<[], Array<UserProfile>>,
   'removeAttachmentFromReport' : ActorMethod<[string, string], undefined>,
   'requestApproval' : ActorMethod<[], undefined>,
@@ -123,7 +130,7 @@ export interface _SERVICE {
   'setApproval' : ActorMethod<[Principal, ApprovalStatus], undefined>,
   'submitReport' : ActorMethod<[string], undefined>,
   'updateCallerUserProfile' : ActorMethod<
-    [[] | [string], [] | [string], [] | [string], [] | [string]],
+    [[] | [string], [] | [string], [] | [string], [] | [string], [] | [string]],
     undefined
   >,
   'updateReport' : ActorMethod<[string, LaporanUpdate], undefined>,

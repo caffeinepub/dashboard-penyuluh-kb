@@ -10,6 +10,7 @@ import {
   LogOut,
   Menu,
   PlusCircle,
+  UserCog,
   Users,
   X,
 } from "lucide-react";
@@ -22,7 +23,8 @@ export type AdminView = "admin-dashboard" | "admin-users" | "admin-reports";
 export type PenyuluhView =
   | "penyuluh-dashboard"
   | "penyuluh-report-form"
-  | "penyuluh-report-history";
+  | "penyuluh-report-history"
+  | "penyuluh-edit-profile";
 
 export type AppView = AdminView | PenyuluhView;
 
@@ -65,6 +67,11 @@ const penyuluhNavItems: NavItem[] = [
     id: "penyuluh-report-history",
     label: "Riwayat Laporan",
     icon: <History size={18} />,
+  },
+  {
+    id: "penyuluh-edit-profile",
+    label: "Edit Profil",
+    icon: <UserCog size={18} />,
   },
 ];
 

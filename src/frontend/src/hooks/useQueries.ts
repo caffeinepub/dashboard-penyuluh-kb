@@ -149,6 +149,7 @@ export function useSaveProfile() {
       role: string;
       wilayah: string;
       unitKerja: string;
+      tandaTangan?: string;
     }) => {
       if (!actor) throw new Error("Actor not available");
       await actor.saveCallerUserProfile(profile as any);
@@ -304,6 +305,32 @@ export function useAdminDeleteReport() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allReports"] });
       queryClient.invalidateQueries({ queryKey: ["adminStats"] });
+    },
+  });
+}
+
+export function useUpdateProfile() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (profile: {
+      name?: string;
+      nip?: string;
+      unitKerja?: string;
+      wilayah?: string;
+      tandaTangan?: string;
+    }) => {
+      if (!actor) throw new Error("Actor not available");
+      await (actor as any).updateCallerUserProfile(
+        profile.name ? [profile.name] : [],
+        profile.nip ? [profile.nip] : [],
+        profile.unitKerja ? [profile.unitKerja] : [],
+        profile.wilayah ? [profile.wilayah] : [],
+        profile.tandaTangan ? [profile.tandaTangan] : [],
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["currentUserProfile"] });
     },
   });
 }

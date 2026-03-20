@@ -17,7 +17,11 @@ import {
 } from "@/components/ui/select";
 import { ChevronDown, Loader2, Shield, UserPlus } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import SignaturePad, {
+  type SignaturePadHandle,
+} from "../components/SignaturePad";
+
 import { toast } from "sonner";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useRequestApproval, useSaveProfile } from "../hooks/useQueries";
@@ -35,6 +39,7 @@ export default function LoginPage({ showRegister }: LoginPageProps) {
 
   const saveProfile = useSaveProfile();
   const requestApproval = useRequestApproval();
+  const signaturePadRef = useRef<SignaturePadHandle>(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -67,9 +72,14 @@ export default function LoginPage({ showRegister }: LoginPageProps) {
       toast.error("Mohon lengkapi semua field yang diperlukan");
       return;
     }
+    if (signaturePadRef.current?.isEmpty()) {
+      toast.error("Tanda tangan wajib diisi");
+      return;
+    }
+    const tandaTangan = signaturePadRef.current?.getDataURL() ?? "";
     setIsSubmitting(true);
     try {
-      await saveProfile.mutateAsync(form);
+      await saveProfile.mutateAsync({ ...form, tandaTangan });
       await requestApproval.mutateAsync();
       toast.success("Pendaftaran berhasil! Menunggu persetujuan Admin.");
     } catch {
@@ -159,6 +169,10 @@ export default function LoginPage({ showRegister }: LoginPageProps) {
                     }
                     required
                   />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Tanda Tangan *</Label>
+                  <SignaturePad ref={signaturePadRef} />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="role">Peran *</Label>

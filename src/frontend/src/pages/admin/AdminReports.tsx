@@ -42,6 +42,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import type { LaporanRencanaKerja } from "../../backend.d";
 import { PageContent, SectionHeader } from "../../components/AppLayout";
+import { useActor } from "../../hooks/useActor";
 import {
   useAdminDeleteReport,
   useAdminEditReport,
@@ -100,6 +101,7 @@ export default function AdminReports() {
     keterangan: "",
     status: "draft",
   });
+  const { actor } = useActor();
   const [deleteTarget, setDeleteTarget] = useState<LaporanRencanaKerja | null>(
     null,
   );
@@ -114,6 +116,29 @@ export default function AdminReports() {
   // Admin downloads include the status field
   const handleDownload = async (report: LaporanRencanaKerja) => {
     try {
+      let authorProfile = {
+        name: "(Penyuluh KB)",
+        nip: "-",
+        unitKerja: "-",
+        wilayah: "-",
+        tandaTangan: "",
+      };
+      if (actor && report.author) {
+        try {
+          const fetched = await actor.getUserProfile(report.author as any);
+          if (fetched) {
+            authorProfile = {
+              name: (fetched as any).name ?? authorProfile.name,
+              nip: (fetched as any).nip ?? authorProfile.nip,
+              unitKerja: (fetched as any).unitKerja ?? authorProfile.unitKerja,
+              wilayah: (fetched as any).wilayah ?? authorProfile.wilayah,
+              tandaTangan: (fetched as any).tandaTangan ?? "",
+            };
+          }
+        } catch {
+          // fall back to defaults
+        }
+      }
       await downloadReportPDF(
         {
           nomorLaporan: report.nomorLaporan,
@@ -130,12 +155,7 @@ export default function AdminReports() {
           status: report.status as string,
           lampiranIds: report.lampiranIds,
         },
-        {
-          name: "(Penyuluh KB)",
-          nip: "-",
-          unitKerja: "-",
-          wilayah: "-",
-        },
+        authorProfile,
         { showStatus: true },
       );
     } catch {

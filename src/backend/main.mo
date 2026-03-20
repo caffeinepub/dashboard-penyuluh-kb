@@ -6,6 +6,7 @@ import Principal "mo:core/Principal";
 import Iter "mo:core/Iter";
 import Order "mo:core/Order";
 
+
 import AccessControl "authorization/access-control";
 import UserApproval "user-approval/approval";
 import MixinAuthorization "authorization/MixinAuthorization";
@@ -21,7 +22,6 @@ actor {
   let approvalState = UserApproval.initState(accessControlState);
   include MixinStorage();
 
-  // User approval functions
   public query ({ caller }) func isCallerApproved() : async Bool {
     AccessControl.hasPermission(accessControlState, caller, #admin) or UserApproval.isApproved(approvalState, caller);
   };
@@ -59,6 +59,7 @@ actor {
     unitKerja : Text;
     wilayah : Text;
     role : UserRole;
+    tandaTangan : ?Text;
   };
 
   public type DeletedUser = {
@@ -148,7 +149,13 @@ actor {
     userProfiles.add(caller, profile);
   };
 
-  public shared ({ caller }) func updateCallerUserProfile(name : ?Text, nip : ?Text, unitKerja : ?Text, wilayah : ?Text) : async () {
+  public shared ({ caller }) func updateCallerUserProfile(
+    name : ?Text,
+    nip : ?Text,
+    unitKerja : ?Text,
+    wilayah : ?Text,
+    tandaTangan : ?Text,
+  ) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can update profiles");
     };
@@ -162,6 +169,10 @@ actor {
           unitKerja = switch (unitKerja) { case (?u) u; case null existingProfile.unitKerja };
           wilayah = switch (wilayah) { case (?w) w; case null existingProfile.wilayah };
           role = existingProfile.role;
+          tandaTangan = switch (tandaTangan) {
+            case (?t) { ?t };
+            case (null) { existingProfile.tandaTangan };
+          };
         };
         userProfiles.add(caller, updatedProfile);
       };
@@ -428,5 +439,4 @@ actor {
       };
     };
   };
-
 };

@@ -48,16 +48,17 @@ export interface AdminStats {
     approvedUsers: bigint;
     totalUsers: bigint;
 }
+export interface DeletedUser {
+    principal: Principal;
+    profile: UserProfile;
+}
 export interface UserProfile {
     nip: string;
     name: string;
     role: UserRole;
+    tandaTangan?: string;
     wilayah: string;
     unitKerja: string;
-}
-export interface DeletedUser {
-    principal: Principal;
-    profile: UserProfile;
 }
 export enum ApprovalStatus {
     pending = "pending",
@@ -103,6 +104,6 @@ export interface backendInterface {
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     setApproval(user: Principal, status: ApprovalStatus): Promise<void>;
     submitReport(nomorLaporan: string): Promise<void>;
-    updateCallerUserProfile(name: string | null, nip: string | null, unitKerja: string | null, wilayah: string | null): Promise<void>;
+    updateCallerUserProfile(name: string | null, nip: string | null, unitKerja: string | null, wilayah: string | null, tandaTangan: string | null): Promise<void>;
     updateReport(nomorLaporan: string, updatedReport: LaporanUpdate): Promise<void>;
 }

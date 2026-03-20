@@ -29,6 +29,7 @@ interface ReportHistoryProps {
     nip: string;
     unitKerja: string;
     wilayah: string;
+    tandaTangan?: string;
   };
 }
 

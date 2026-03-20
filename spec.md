@@ -1,26 +1,31 @@
 # Dashboard Penyuluh KB
 
 ## Current State
-The app has a full report form (ReportForm) with 11 fields per Permen 10. Reports can be saved as draft or submitted. No file attachment support exists yet.
+Aplikasi dashboard laporan harian Penyuluh KB. Pengguna dapat login, mendaftar (dengan tanda tangan kanvas), membuat/melihat laporan, dan mengunduh PDF. PDF lampiran diproses: gambar ditampilkan sebagai halaman gambar, PDF dimerge di akhir (setelah semua gambar), dan ada teks 'Halaman-halaman berikut adalah isi dokumen PDF yang dilampirkan:'. Tidak ada fitur edit profil untuk pengguna yang sudah terdaftar.
 
 ## Requested Changes (Diff)
 
 ### Add
-- File attachment section in ReportForm: upload PDF, Word (.doc/.docx), or image files (jpg, png, etc.)
-- Display list of attached files with name, size, and remove button before submit
-- Store blob IDs (from blob-storage) in the report record as `lampiranIds: [Text]`
-- Show attached files in ReportHistory when viewing a report
+- Halaman Edit Profil untuk penyuluh (`penyuluh-edit-profile` view) — dapat mengubah nama, NIP, unit kerja, wilayah, dan tanda tangan
+- Nav item "Edit Profil" di sidebar penyuluh
+- Mutation `useUpdateProfile` di useQueries.ts yang memanggil `actor.updateCallerUserProfile`
 
 ### Modify
-- Backend `LaporanRencanaKerja` type: add `lampiranIds : [Text]` field
-- `createReport` and `updateReport` to accept and persist `lampiranIds`
-- ReportForm: add file upload UI section below existing fields, before action buttons
+- **SignaturePad** → ubah dari kanvas gambar tangan menjadi komponen file upload gambar (user upload foto/gambar tanda tangan); interface `SignaturePadHandle` tetap sama (getDataURL, isEmpty, clear)
+- **LoginPage** → registrasi tetap menggunakan SignaturePad (yang sudah diubah jadi file upload)
+- **pdfGenerator.ts** → 
+  1. Hapus teks `'Halaman-halaman berikut adalah isi dokumen PDF yang dilampirkan:'`
+  2. Proses semua lampiran dalam urutan upload asli (satu loop tunggal; jangan pisahkan images vs PDFs). Setelah mainDoc tersimpan sebagai finalDoc, proses semua attachment secara berurutan: untuk gambar buat halaman gambar, untuk PDF tambahkan label page + salin halaman PDF, untuk file lain buat halaman info
+- **AppLayout.tsx** → tambah `'penyuluh-edit-profile'` ke `PenyuluhView` type dan nav item
+- **App.tsx** → tangani view `penyuluh-edit-profile`, render EditProfile; pass `onEditProfile` callback ke AppLayout atau gunakan setCurrentView langsung
 
 ### Remove
-- Nothing removed
+- Tidak ada yang dihapus
 
 ## Implementation Plan
-1. Update Motoko backend: add `lampiranIds` field to `LaporanRencanaKerja`, update create/update handlers
-2. Regenerate backend bindings
-3. Update ReportForm: integrate blob-storage upload hook, show file list, pass lampiranIds on submit
-4. Update ReportHistory: display attached file links if lampiranIds present
+1. Ubah `SignaturePad.tsx` menjadi file upload gambar: tampilkan preview gambar yang diupload, tombol hapus/ganti, expose getDataURL/isEmpty/clear
+2. Tambah `useUpdateProfile` mutation di useQueries.ts
+3. Buat `src/frontend/src/pages/penyuluh/EditProfile.tsx` dengan form edit profil (nama, nip, unitKerja, wilayah, tandaTangan via file upload)
+4. Tambah `penyuluh-edit-profile` ke AppView types dan nav items di AppLayout.tsx
+5. Tangani view baru di App.tsx, teruskan profile data ke EditProfile
+6. Perbaiki pdfGenerator.ts: hapus teks lampiran PDF, ubah ke satu pass berurutan untuk semua lampiran

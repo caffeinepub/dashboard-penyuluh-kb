@@ -47,6 +47,7 @@ export const UserProfile = IDL.Record({
   'nip' : IDL.Text,
   'name' : IDL.Text,
   'role' : UserRole,
+  'tandaTangan' : IDL.Opt(IDL.Text),
   'wilayah' : IDL.Text,
   'unitKerja' : IDL.Text,
 });
@@ -86,6 +87,10 @@ export const UserApprovalInfo = IDL.Record({
   'status' : ApprovalStatus,
   'principal' : IDL.Principal,
 });
+export const DeletedUser = IDL.Record({
+  'principal' : IDL.Principal,
+  'profile' : UserProfile,
+});
 
 export const idlService = IDL.Service({
   '_caffeineStorageBlobIsLive' : IDL.Func(
@@ -124,6 +129,7 @@ export const idlService = IDL.Service({
       [],
     ),
   'adminEditUserProfile' : IDL.Func([IDL.Principal, UserProfile], [], []),
+  'adminRestoreUser' : IDL.Func([IDL.Principal], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole__1], [], []),
   'createReport' : IDL.Func([LaporanRencanaKerja], [], []),
   'getAdminStats' : IDL.Func([], [AdminStats], ['query']),
@@ -139,6 +145,7 @@ export const idlService = IDL.Service({
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'isCallerApproved' : IDL.Func([], [IDL.Bool], ['query']),
   'listApprovals' : IDL.Func([], [IDL.Vec(UserApprovalInfo)], ['query']),
+  'listDeletedUsers' : IDL.Func([], [IDL.Vec(DeletedUser)], ['query']),
   'listUsers' : IDL.Func([], [IDL.Vec(UserProfile)], ['query']),
   'removeAttachmentFromReport' : IDL.Func([IDL.Text, IDL.Text], [], []),
   'requestApproval' : IDL.Func([], [], []),
@@ -147,6 +154,7 @@ export const idlService = IDL.Service({
   'submitReport' : IDL.Func([IDL.Text], [], []),
   'updateCallerUserProfile' : IDL.Func(
       [
+        IDL.Opt(IDL.Text),
         IDL.Opt(IDL.Text),
         IDL.Opt(IDL.Text),
         IDL.Opt(IDL.Text),
@@ -200,6 +208,7 @@ export const idlFactory = ({ IDL }) => {
     'nip' : IDL.Text,
     'name' : IDL.Text,
     'role' : UserRole,
+    'tandaTangan' : IDL.Opt(IDL.Text),
     'wilayah' : IDL.Text,
     'unitKerja' : IDL.Text,
   });
@@ -239,6 +248,10 @@ export const idlFactory = ({ IDL }) => {
     'status' : ApprovalStatus,
     'principal' : IDL.Principal,
   });
+  const DeletedUser = IDL.Record({
+    'principal' : IDL.Principal,
+    'profile' : UserProfile,
+  });
   
   return IDL.Service({
     '_caffeineStorageBlobIsLive' : IDL.Func(
@@ -277,6 +290,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'adminEditUserProfile' : IDL.Func([IDL.Principal, UserProfile], [], []),
+    'adminRestoreUser' : IDL.Func([IDL.Principal], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole__1], [], []),
     'createReport' : IDL.Func([LaporanRencanaKerja], [], []),
     'getAdminStats' : IDL.Func([], [AdminStats], ['query']),
@@ -292,6 +306,7 @@ export const idlFactory = ({ IDL }) => {
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'isCallerApproved' : IDL.Func([], [IDL.Bool], ['query']),
     'listApprovals' : IDL.Func([], [IDL.Vec(UserApprovalInfo)], ['query']),
+    'listDeletedUsers' : IDL.Func([], [IDL.Vec(DeletedUser)], ['query']),
     'listUsers' : IDL.Func([], [IDL.Vec(UserProfile)], ['query']),
     'removeAttachmentFromReport' : IDL.Func([IDL.Text, IDL.Text], [], []),
     'requestApproval' : IDL.Func([], [], []),
@@ -300,6 +315,7 @@ export const idlFactory = ({ IDL }) => {
     'submitReport' : IDL.Func([IDL.Text], [], []),
     'updateCallerUserProfile' : IDL.Func(
         [
+          IDL.Opt(IDL.Text),
           IDL.Opt(IDL.Text),
           IDL.Opt(IDL.Text),
           IDL.Opt(IDL.Text),

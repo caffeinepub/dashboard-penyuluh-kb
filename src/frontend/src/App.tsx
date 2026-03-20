@@ -13,6 +13,7 @@ import PendingApprovalPage from "./pages/PendingApprovalPage";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminReports from "./pages/admin/AdminReports";
 import AdminUsers from "./pages/admin/AdminUsers";
+import EditProfile from "./pages/penyuluh/EditProfile";
 import PenyuluhDashboard from "./pages/penyuluh/PenyuluhDashboard";
 import ReportForm from "./pages/penyuluh/ReportForm";
 import ReportHistory from "./pages/penyuluh/ReportHistory";
@@ -126,7 +127,8 @@ export default function App() {
     if (
       currentView === "penyuluh-dashboard" ||
       currentView === "penyuluh-report-form" ||
-      currentView === "penyuluh-report-history"
+      currentView === "penyuluh-report-history" ||
+      currentView === "penyuluh-edit-profile"
     ) {
       return currentView;
     }
@@ -163,7 +165,21 @@ export default function App() {
               nip: profile.nip,
               unitKerja: profile.unitKerja,
               wilayah: profile.wilayah,
+              tandaTangan: (profile as any).tandaTangan ?? "",
             }}
+          />
+        );
+      case "penyuluh-edit-profile":
+        return (
+          <EditProfile
+            userProfile={{
+              name: profile.name,
+              nip: profile.nip,
+              unitKerja: profile.unitKerja,
+              wilayah: profile.wilayah,
+              tandaTangan: (profile as any).tandaTangan ?? "",
+            }}
+            onCancel={() => setCurrentView("penyuluh-dashboard")}
           />
         );
       default:
