@@ -1,7 +1,9 @@
 import { Toaster } from "@/components/ui/sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AppLayout, { type AppView } from "./components/AppLayout";
+import { useActor } from "./hooks/useActor";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import {
   useGetCallerUserProfile,
@@ -49,6 +51,46 @@ export default function App() {
   const { data: isAdmin, isLoading: adminLoading } = useIsCallerAdmin();
 
   const [currentView, setCurrentView] = useState<AppView>("penyuluh-dashboard");
+  // Track whether admin claim is still pending
+  const [isClaimingAdmin, setIsClaimingAdmin] = useState(false);
+  const claimAttempted = useRef(false);
+
+  const queryClient = useQueryClient();
+  const { actor } = useActor();
+
+  // After login with admin code, claim admin access on the backend
+  useEffect(() => {
+    const pendingCode = localStorage.getItem("pendingAdminClaim");
+    if (isAuthenticated && actor && pendingCode && !claimAttempted.current) {
+      claimAttempted.current = true;
+      setIsClaimingAdmin(true);
+      localStorage.removeItem("pendingAdminClaim");
+      (actor as any)
+        .claimAdminAccess(pendingCode)
+        .then(async (success: boolean) => {
+          if (success) {
+            await Promise.all([
+              queryClient.invalidateQueries({ queryKey: ["isCallerAdmin"] }),
+              queryClient.invalidateQueries({ queryKey: ["isCallerApproved"] }),
+              queryClient.invalidateQueries({
+                queryKey: ["currentUserProfile"],
+              }),
+            ]);
+            await Promise.all([
+              queryClient.refetchQueries({ queryKey: ["isCallerAdmin"] }),
+              queryClient.refetchQueries({ queryKey: ["isCallerApproved"] }),
+              queryClient.refetchQueries({ queryKey: ["currentUserProfile"] }),
+            ]);
+          }
+        })
+        .catch(() => {
+          // silently ignore errors
+        })
+        .finally(() => {
+          setIsClaimingAdmin(false);
+        });
+    }
+  }, [isAuthenticated, actor, queryClient]);
 
   // Initializing Internet Identity
   if (isInitializing) {
@@ -65,6 +107,11 @@ export default function App() {
     );
   }
 
+  // Waiting for admin claim to complete
+  if (isClaimingAdmin) {
+    return <LoadingScreen />;
+  }
+
   // Logged in -- wait for all auth queries in parallel (one loading screen)
   if (profileLoading || !profileFetched || adminLoading || approvalLoading) {
     return <LoadingScreen />;
@@ -72,7 +119,7 @@ export default function App() {
 
   // Logged in but no profile
   if (!profile) {
-    // If the user is an admin (e.g., profile was deleted), bypass registration
+    // If the user is an admin (e.g., profile was deleted or just claimed admin), bypass registration
     // and go straight to the admin panel with a default display name.
     if (isAdmin) {
       return (

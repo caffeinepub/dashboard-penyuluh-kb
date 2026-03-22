@@ -62,7 +62,8 @@ export default function LoginPage({ showRegister }: LoginPageProps) {
       toast.error("Kode admin tidak valid");
       return;
     }
-    // Kode benar -- lanjutkan login dengan Internet Identity
+    // Store flag so App.tsx can call claimAdminAccess after login
+    localStorage.setItem("pendingAdminClaim", ADMIN_PASSWORD);
     login();
   };
 

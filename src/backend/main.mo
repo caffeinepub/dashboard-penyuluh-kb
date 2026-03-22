@@ -22,6 +22,21 @@ actor {
   let approvalState = UserApproval.initState(accessControlState);
   include MixinStorage();
 
+  // Kode admin statis -- digunakan untuk memulihkan akses admin
+  let ADMIN_RECOVERY_CODE = "Lupalagi09@";
+
+  // Klaim akses admin menggunakan kode rahasia.
+  // Fungsi ini memungkinkan admin yang kehilangan akses (profil dihapus / akun baru)
+  // untuk memulihkan status admin tanpa memerlukan akses admin sebelumnya.
+  public shared ({ caller }) func claimAdminAccess(code : Text) : async Bool {
+    if (caller.isAnonymous()) { return false };
+    if (code != ADMIN_RECOVERY_CODE) { return false };
+    // Grant admin role langsung ke accessControlState
+    accessControlState.userRoles.add(caller, #admin);
+    accessControlState.adminAssigned := true;
+    true
+  };
+
   public query ({ caller }) func isCallerApproved() : async Bool {
     AccessControl.hasPermission(accessControlState, caller, #admin) or UserApproval.isApproved(approvalState, caller);
   };

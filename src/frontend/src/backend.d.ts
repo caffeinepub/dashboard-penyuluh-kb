@@ -87,6 +87,7 @@ export interface backendInterface {
     adminEditUserProfile(user: Principal, profile: UserProfile): Promise<void>;
     adminRestoreUser(user: Principal): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole__1): Promise<void>;
+    claimAdminAccess(code: string): Promise<boolean>;
     createReport(report: LaporanRencanaKerja): Promise<void>;
     getAdminStats(): Promise<AdminStats>;
     getAllReports(): Promise<Array<LaporanRencanaKerja>>;
